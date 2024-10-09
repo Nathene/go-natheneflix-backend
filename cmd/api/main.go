@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -16,8 +17,17 @@ const port = 3030
 
 type app struct {
 	DSN    string
-	domain string
+	Domain string
 	DB     repository.DatabaseRepo
+	auth   Auth
+	JWT    JWT
+}
+
+type JWT struct {
+	Secret       string
+	Issuer       string
+	Audience     string
+	CookieDomain string
 }
 
 func main() {
@@ -33,6 +43,11 @@ func main() {
 	flag.StringVar(&app.DSN, "dsn", fmt.Sprintf(`
 	host=%s port=%s user=%s password=%s dbname=%s sslmode=%s timezone=UTC connect_timeout=5`, e.host, e.port, e.user, e.password, e.dbname, e.sslmode),
 		"Postgres Connection String")
+	flag.StringVar(&app.JWT.Secret, "jwt-secret", "dev", "Signing secret")
+	flag.StringVar(&app.JWT.Issuer, "jwt-issuer", "exmaple.com", "Signing Issuer")
+	flag.StringVar(&app.JWT.Audience, "jwt-audience", "example.com", "Signing Audience")
+	flag.StringVar(&app.JWT.CookieDomain, "cookie-domain", "localhost", "Cookie Domain")
+	flag.StringVar(&app.Domain, "domain", "exmaple.com", "domain")
 	flag.Parse()
 
 	conn, err := app.connectToDB()
@@ -43,7 +58,17 @@ func main() {
 	app.DB = &dbrepo.PostgresDBRepo{DB: conn}
 	defer app.DB.Connection().Close()
 
-	app.domain = "example.com"
+	app.auth = Auth{
+		Issuer:        app.JWT.Issuer,
+		Audience:      app.JWT.Audience,
+		Secret:        app.JWT.Secret,
+		TokenExpiry:   time.Minute * 15,
+		RefreshExpiry: time.Hour * 24,
+		CookiePath:    "/",
+		CookieName:    "__Host-refresh_token",
+		CookieDomain:  app.JWT.CookieDomain,
+	}
+
 	log.Printf("Listening on port %d...", port)
 
 	err = http.ListenAndServe(fmt.Sprintf(":%d", port), app.routes())
