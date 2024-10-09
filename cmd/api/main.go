@@ -1,7 +1,8 @@
 package main
 
 import (
-	"database/sql"
+	"backend/internal/repository"
+	"backend/internal/repository/dbrepo"
 	"flag"
 	"fmt"
 	"log"
@@ -16,7 +17,7 @@ const port = 3030
 type app struct {
 	DSN    string
 	domain string
-	db     *sql.DB
+	DB     repository.DatabaseRepo
 }
 
 func main() {
@@ -34,11 +35,13 @@ func main() {
 		"Postgres Connection String")
 	flag.Parse()
 
-	app.db, err = app.connectToDB()
+	conn, err := app.connectToDB()
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer app.db.Close()
+
+	app.DB = &dbrepo.PostgresDBRepo{DB: conn}
+	defer app.DB.Connection().Close()
 
 	app.domain = "example.com"
 	log.Printf("Listening on port %d...", port)
