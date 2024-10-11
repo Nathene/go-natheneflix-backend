@@ -10,18 +10,25 @@ import (
 )
 
 func openDB(dsn string) (*sql.DB, error) {
-	return sql.Open("pgx", dsn)
-}
-
-func (a *app) connectToDB() (*sql.DB, error) {
-	conn, err := openDB(a.DSN)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
 	}
-	if err := conn.Ping(); err != nil {
-		log.Fatal(err)
+
+	err = db.Ping()
+	if err != nil {
+		return nil, err
 	}
 
-	log.Println("Connected to Postgres")
-	return conn, nil
+	return db, nil
+}
+
+func (app *application) connectToDB() (*sql.DB, error) {
+	connection, err := openDB(app.DSN)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Println("Connected to Postgres!")
+	return connection, nil
 }

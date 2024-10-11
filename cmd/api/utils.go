@@ -2,12 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
-	"log"
 	"net/http"
 )
-
-const maxBytes = 1 << 20 // 1MB
 
 type JSONResponse struct {
 	Error   bool        `json:"error"`
@@ -15,24 +13,30 @@ type JSONResponse struct {
 	Data    interface{} `json:"data,omitempty"`
 }
 
-func (a *app) writeJSON(w http.ResponseWriter, status int, data interface{}, headers ...http.Header) {
+func (app *application) writeJSON(w http.ResponseWriter, status int, data interface{}, headers ...http.Header) error {
 	out, err := json.Marshal(data)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	if len(headers) > 0 {
-		for key, val := range headers[0] {
-			w.Header()[key] = val
+		for key, value := range headers[0] {
+			w.Header()[key] = value
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_, _ = w.Write(out)
+	_, err = w.Write(out)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (a *app) readJSON(w http.ResponseWriter, r *http.Request, data interface{}) {
+func (app *application) readJSON(w http.ResponseWriter, r *http.Request, data interface{}) error {
+	maxBytes := 1024 * 1024 // one megabyte
 	r.Body = http.MaxBytesReader(w, r.Body, int64(maxBytes))
 
 	dec := json.NewDecoder(r.Body)
@@ -41,16 +45,18 @@ func (a *app) readJSON(w http.ResponseWriter, r *http.Request, data interface{})
 
 	err := dec.Decode(data)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	err = dec.Decode(&struct{}{})
 	if err != io.EOF {
-		log.Fatal("body must only contain a single JSON value")
+		return errors.New("body must only contain a single JSON value")
 	}
+
+	return nil
 }
 
-func (a *app) errorJSON(w http.ResponseWriter, err error, status ...int) {
+func (app *application) errorJSON(w http.ResponseWriter, err error, status ...int) error {
 	statusCode := http.StatusBadRequest
 
 	if len(status) > 0 {
@@ -61,5 +67,5 @@ func (a *app) errorJSON(w http.ResponseWriter, err error, status ...int) {
 	payload.Error = true
 	payload.Message = err.Error()
 
-	a.writeJSON(w, statusCode, payload)
+	return app.writeJSON(w, statusCode, payload)
 }

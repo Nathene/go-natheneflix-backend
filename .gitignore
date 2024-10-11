@@ -1,2 +1,4 @@
+sql
 postgres-data
-.env
+.DS_Store
+cmd/.DS_Store

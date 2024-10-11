@@ -7,94 +7,59 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"time"
-
-	"github.com/joho/godotenv"
 )
 
-const port = 3030
+const port = 8080
 
-type app struct {
-	DSN    string
-	Domain string
-	DB     repository.DatabaseRepo
-	auth   Auth
-	JWT    JWT
-}
-
-type JWT struct {
-	Secret       string
-	Issuer       string
-	Audience     string
+type application struct {
+	DSN          string
+	Domain       string
+	DB           repository.DatabaseRepo
+	auth         Auth
+	JWTSecret    string
+	JWTIssuer    string
+	JWTAudience  string
 	CookieDomain string
 }
 
 func main() {
-	var app app
-	var err error
+	// set application config
+	var app application
 
-	err = godotenv.Load()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	e := populateEnvVars()
-	flag.StringVar(&app.DSN, "dsn", fmt.Sprintf(`
-	host=%s port=%s user=%s password=%s dbname=%s sslmode=%s timezone=UTC connect_timeout=5`, e.host, e.port, e.user, e.password, e.dbname, e.sslmode),
-		"Postgres Connection String")
-	flag.StringVar(&app.JWT.Secret, "jwt-secret", "dev", "Signing secret")
-	flag.StringVar(&app.JWT.Issuer, "jwt-issuer", "exmaple.com", "Signing Issuer")
-	flag.StringVar(&app.JWT.Audience, "jwt-audience", "example.com", "Signing Audience")
-	flag.StringVar(&app.JWT.CookieDomain, "cookie-domain", "localhost", "Cookie Domain")
-	flag.StringVar(&app.Domain, "domain", "exmaple.com", "domain")
+	// read from command line
+	flag.StringVar(&app.DSN, "dsn", "host=localhost port=3306 user=postgres password=postgres dbname=movies sslmode=disable timezone=UTC connect_timeout=5", "Postgres connection string")
+	flag.StringVar(&app.JWTSecret, "jwt-secret", "verysecret", "signing secret")
+	flag.StringVar(&app.JWTIssuer, "jwt-issuer", "example.com", "signing issuer")
+	flag.StringVar(&app.JWTAudience, "jwt-audience", "example.com", "signing audience")
+	flag.StringVar(&app.CookieDomain, "cookie-domain", "localhost", "cookie domain")
+	flag.StringVar(&app.Domain, "domain", "example.com", "domain")
 	flag.Parse()
 
+	// connect to the database
 	conn, err := app.connectToDB()
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	app.DB = &dbrepo.PostgresDBRepo{DB: conn}
 	defer app.DB.Connection().Close()
 
 	app.auth = Auth{
-		Issuer:        app.JWT.Issuer,
-		Audience:      app.JWT.Audience,
-		Secret:        app.JWT.Secret,
+		Issuer:        app.JWTIssuer,
+		Audience:      app.JWTAudience,
+		Secret:        app.JWTSecret,
 		TokenExpiry:   time.Minute * 15,
 		RefreshExpiry: time.Hour * 24,
 		CookiePath:    "/",
 		CookieName:    "__Host-refresh_token",
-		CookieDomain:  app.JWT.CookieDomain,
+		CookieDomain:  app.CookieDomain,
 	}
 
-	log.Printf("Listening on port %d...", port)
+	log.Println("Starting application on port", port)
 
+	// start a web server
 	err = http.ListenAndServe(fmt.Sprintf(":%d", port), app.routes())
 	if err != nil {
 		log.Fatal(err)
 	}
-
-}
-
-type env struct {
-	host     string
-	port     string
-	user     string
-	password string
-	dbname   string
-	sslmode  string
-}
-
-func populateEnvVars() *env {
-	e := &env{}
-	e.host = os.Getenv("PG_HOST")
-	e.port = os.Getenv("PG_PORT")
-	e.user = os.Getenv("PG_USER")
-	e.password = os.Getenv("PG_PASS")
-	e.dbname = os.Getenv("PG_NAME")
-	e.sslmode = os.Getenv("PG_SSL")
-
-	return e
 }
