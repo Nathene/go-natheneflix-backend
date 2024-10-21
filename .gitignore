@@ -3,3 +3,4 @@ postgres-data
 .DS_Store
 cmd/.DS_Store
 internal/secret
+.env

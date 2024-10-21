@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 const port = 8080
@@ -26,11 +29,13 @@ type application struct {
 }
 
 func main() {
+	// get environment variables
+	godotenv.Load()
 	// set application config
 	var app application
 
 	// read from command line
-	flag.StringVar(&app.DSN, "dsn", "host=localhost port=3306 user=postgres password=postgres dbname=movies sslmode=disable timezone=UTC connect_timeout=5", "Postgres connection string")
+	flag.StringVar(&app.DSN, "dsn", "", "Postgres connection string")
 	flag.StringVar(&app.JWTSecret, "jwt-secret", "verysecret", "signing secret")
 	flag.StringVar(&app.JWTIssuer, "jwt-issuer", "example.com", "signing issuer")
 	flag.StringVar(&app.JWTAudience, "jwt-audience", "example.com", "signing audience")
@@ -38,6 +43,8 @@ func main() {
 	flag.StringVar(&app.Domain, "domain", "example.com", "domain")
 	flag.StringVar(&app.APIKey, "api-key", secret.IMG_API_KEY, "api-key")
 	flag.Parse()
+
+	app.DSN = os.Getenv("DB_DSN")
 
 	// connect to the database
 	conn, err := app.connectToDB()
